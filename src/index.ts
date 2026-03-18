@@ -30,7 +30,7 @@ app.use((req, _res, next) => {
 // ============ ROUTES ============
 
 // Health check
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({
     status: 'ok',
     message: 'POS Platform API is running',
