@@ -22,7 +22,7 @@ app.use(cors());
 app.use(express.json());
 
 // Logging
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
@@ -42,30 +42,30 @@ app.get('/', (req, res) => {
 app.post('/api/customers', async (req, res) => {
   try {
     const { name, business, phone, email } = req.body;
-    
+
     if (!name || !business) {
       return res.status(400).json({
         status: 'error',
         message: 'Name and business are required'
       });
     }
-    
+
     const customer = await prisma.customer.create({
       data: {
         name,
         business,
-        phone: phone || null,
-        email: email || null
+        phone: phone ?? undefined,
+        email: email ?? undefined
       }
     });
-    
-    res.status(201).json({
+
+    return res.status(201).json({
       status: 'success',
       data: customer
     });
   } catch (error: any) {
     console.error('Error creating customer:', error);
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       message: error.message || 'Failed to create customer'
     });
@@ -73,20 +73,20 @@ app.post('/api/customers', async (req, res) => {
 });
 
 // GET all customers
-app.get('/api/customers', async (req, res) => {
+app.get('/api/customers', async (_req, res) => {
   try {
     const customers = await prisma.customer.findMany({
       include: { licenses: true },
       orderBy: { createdAt: 'desc' }
     });
-    
-    res.json({
+
+    return res.json({
       status: 'success',
       data: customers
     });
   } catch (error: any) {
     console.error('Error getting customers:', error);
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       message: error.message || 'Failed to get customers'
     });
@@ -97,26 +97,26 @@ app.get('/api/customers', async (req, res) => {
 app.get('/api/customers/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const customer = await prisma.customer.findUnique({
       where: { id },
       include: { licenses: true }
     });
-    
+
     if (!customer) {
       return res.status(404).json({
         status: 'error',
         message: 'Customer not found'
       });
     }
-    
-    res.json({
+
+    return res.json({
       status: 'success',
       data: customer
     });
   } catch (error: any) {
     console.error('Error getting customer:', error);
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       message: error.message || 'Failed to get customer'
     });
@@ -127,29 +127,29 @@ app.get('/api/customers/:id', async (req, res) => {
 app.post('/api/licenses/generate', async (req, res) => {
   try {
     const { customerId, appType, durationDays } = req.body;
-    
+
     if (!customerId || !appType) {
       return res.status(400).json({
         status: 'error',
         message: 'customerId and appType are required'
       });
     }
-    
+
     const customer = await prisma.customer.findUnique({
       where: { id: customerId }
     });
-    
+
     if (!customer) {
       return res.status(404).json({
         status: 'error',
         message: 'Customer not found'
       });
     }
-    
+
     const licenseKey = nanoid(12);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + (durationDays || 30));
-    
+
     const license = await prisma.license.create({
       data: {
         key: licenseKey,
@@ -160,8 +160,8 @@ app.post('/api/licenses/generate', async (req, res) => {
       },
       include: { customer: true }
     });
-    
-    res.status(201).json({
+
+    return res.status(201).json({
       status: 'success',
       data: {
         licenseKey,
@@ -171,7 +171,7 @@ app.post('/api/licenses/generate', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Error generating license:', error);
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       message: error.message || 'Failed to generate license'
     });
@@ -182,40 +182,40 @@ app.post('/api/licenses/generate', async (req, res) => {
 app.post('/api/licenses/activate', async (req, res) => {
   try {
     const { licenseKey } = req.body;
-    
+
     if (!licenseKey) {
       return res.status(400).json({
         status: 'error',
         message: 'License key is required'
       });
     }
-    
+
     const license = await prisma.license.findUnique({
       where: { key: licenseKey },
       include: { customer: true }
     });
-    
+
     if (!license) {
       return res.status(404).json({
         status: 'error',
         message: 'Invalid license key'
       });
     }
-    
+
     if (license.status === 'active') {
       return res.status(400).json({
         status: 'error',
         message: 'License already activated'
       });
     }
-    
+
     if (license.expiresAt && new Date() > license.expiresAt) {
       return res.status(400).json({
         status: 'error',
         message: 'License has expired'
       });
     }
-    
+
     const updatedLicense = await prisma.license.update({
       where: { id: license.id },
       data: {
@@ -224,8 +224,8 @@ app.post('/api/licenses/activate', async (req, res) => {
       },
       include: { customer: true }
     });
-    
-    res.json({
+
+    return res.json({
       status: 'success',
       data: {
         license: updatedLicense,
@@ -234,7 +234,7 @@ app.post('/api/licenses/activate', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Error activating license:', error);
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       message: error.message || 'Failed to activate license'
     });
@@ -245,33 +245,33 @@ app.post('/api/licenses/activate', async (req, res) => {
 app.post('/api/licenses/validate', async (req, res) => {
   try {
     const { licenseKey } = req.body;
-    
+
     if (!licenseKey) {
       return res.status(400).json({
         status: 'error',
         message: 'License key is required'
       });
     }
-    
+
     const license = await prisma.license.findUnique({
       where: { key: licenseKey },
       include: { customer: true }
     });
-    
+
     if (!license) {
       return res.status(404).json({
         status: 'error',
         message: 'Invalid license key'
       });
     }
-    
+
     if (license.status === 'revoked') {
       return res.status(403).json({
         status: 'error',
         message: 'License has been revoked'
       });
     }
-    
+
     if (license.expiresAt && new Date() > license.expiresAt) {
       return res.status(403).json({
         status: 'error',
@@ -279,21 +279,21 @@ app.post('/api/licenses/validate', async (req, res) => {
         expiredAt: license.expiresAt
       });
     }
-    
+
     if (license.status !== 'active') {
       return res.status(403).json({
         status: 'error',
         message: 'License not yet activated'
       });
     }
-    
+
     let daysRemaining = null;
     if (license.expiresAt) {
       const diffTime = license.expiresAt.getTime() - new Date().getTime();
       daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     }
-    
-    res.json({
+
+    return res.json({
       status: 'success',
       data: {
         isValid: true,
@@ -315,7 +315,7 @@ app.post('/api/licenses/validate', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Error validating license:', error);
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       message: error.message || 'Failed to validate license'
     });
@@ -323,23 +323,23 @@ app.post('/api/licenses/validate', async (req, res) => {
 });
 
 // GET licenses by customer
-app.get('/api/licenses/customer/:customerId', async (req, res) => {
+app.get('/api/licenses/customer/:customerId', async (_req, res) => {
   try {
-    const { customerId } = req.params;
-    
+    const { customerId } = _req.params;
+
     const licenses = await prisma.license.findMany({
       where: { customerId },
       include: { customer: true },
       orderBy: { createdAt: 'desc' }
     });
-    
-    res.json({
+
+    return res.json({
       status: 'success',
       data: licenses
     });
   } catch (error: any) {
     console.error('Error getting licenses:', error);
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       message: error.message || 'Failed to get licenses'
     });
@@ -347,7 +347,7 @@ app.get('/api/licenses/customer/:customerId', async (req, res) => {
 });
 
 // 404 handler
-app.use((req, res) => {
+app.use((_req, res) => {
   res.status(404).json({
     status: 'error',
     message: 'Route not found'
@@ -355,7 +355,7 @@ app.use((req, res) => {
 });
 
 // Error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Error:', err);
   res.status(500).json({
     status: 'error',
